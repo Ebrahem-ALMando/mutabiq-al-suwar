@@ -8,7 +8,6 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QDoubleSpinBox,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -19,7 +18,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QProgressBar,
     QPushButton,
-    QSpinBox,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -40,6 +38,7 @@ from models.result_models import (
 )
 from services.excel_service import ExcelService
 from ui.components.drop_zone import DropZone
+from ui.components.inputs import NumericDoubleSpinBox, NumericSpinBox
 from ui.dialogs import message_dialog
 from ui.icons import icon
 from utils.constants import DUPLICATE_POLICY_AR, MULTIPLE_POLICY_AR, SUPPORTED_EXCEL_EXTENSIONS
@@ -119,12 +118,12 @@ class OperationPage(QWidget):
         self.secondary_combo = QComboBox()
         grid.addWidget(self.secondary_combo, 1, 2)
         grid.addWidget(QLabel("بداية البيانات"), 2, 0)
-        self.start_row = QSpinBox()
+        self.start_row = NumericSpinBox()
         self.start_row.setRange(0, 1_000_000)
         self.start_row.setSpecialValueText("تلقائي")
         grid.addWidget(self.start_row, 3, 0)
         grid.addWidget(QLabel("نهاية البيانات"), 2, 1)
-        self.end_row = QSpinBox()
+        self.end_row = NumericSpinBox()
         self.end_row.setRange(0, 1_000_000)
         self.end_row.setSpecialValueText("آخر صف")
         grid.addWidget(self.end_row, 3, 1)
@@ -198,7 +197,7 @@ class OperationPage(QWidget):
         layout.addLayout(normalization)
         fuzzy_row = QHBoxLayout()
         fuzzy_row.addWidget(QLabel("الحد الأدنى للاقتراح التقريبي"))
-        self.fuzzy_threshold = QDoubleSpinBox()
+        self.fuzzy_threshold = NumericDoubleSpinBox()
         self.fuzzy_threshold.setRange(0.5, 0.99)
         self.fuzzy_threshold.setSingleStep(0.01)
         self.fuzzy_threshold.setValue(0.82)

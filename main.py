@@ -13,6 +13,7 @@ from PySide6.QtGui import QFont, QFontDatabase, QIcon, QPixmap
 from PySide6.QtWidgets import QApplication, QSplashScreen
 
 from services.logging_service import close_job_logger, create_job_logger
+from ui.audit_window import UiAuditWindow
 from ui.dialogs import message_dialog
 from ui.premium_window import MainWindow
 from ui.theme import apply_application_theme
@@ -115,11 +116,11 @@ def main() -> int:
                 )
                 splash.show()
                 app.processEvents()
-        window = MainWindow(root, paths, startup_logger)
+        window = UiAuditWindow() if "--ui-audit" in sys.argv else MainWindow(root, paths, startup_logger)
         window.show()
         if splash:
             splash.finish(window)
-        if "--smoke-test" in sys.argv:
+        if "--smoke-test" in sys.argv and isinstance(window, MainWindow):
             start_lifecycle_smoke(window, app, startup_logger)
         exit_code = app.exec()
         if smoke_directory:

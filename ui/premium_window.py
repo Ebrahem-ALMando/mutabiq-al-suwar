@@ -7,7 +7,7 @@ import traceback
 import uuid
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QThread, Slot
+from PySide6.QtCore import QSettings, QSize, Qt, QThread, Slot
 from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -164,12 +164,16 @@ class MainWindow(QMainWindow):
         self.notification_button = QPushButton("الإشعارات")
         self.notification_button.setObjectName("notificationButton")
         self.notification_button.setMaximumWidth(72)
+        self.notification_button.setMinimumSize(42, 42)
+        self.notification_button.setIconSize(QSize(24, 24))
         self.notification_button.setToolTip("الإشعارات")
         self.notification_button.clicked.connect(self.show_notifications)
         top_layout.addWidget(self.notification_button)
         self.help_button = QPushButton("")
         self.help_button.setObjectName("helpButton")
         self.help_button.setFixedWidth(44)
+        self.help_button.setFixedHeight(44)
+        self.help_button.setIconSize(QSize(24, 24))
         self.help_button.setToolTip("المساعدة والدليل")
         self.help_button.clicked.connect(lambda: self.navigate("guide"))
         top_layout.addWidget(self.help_button)
@@ -177,6 +181,8 @@ class MainWindow(QMainWindow):
         menu_button.setObjectName("mainMenuButton")
         menu_button.setText("")
         menu_button.setFixedWidth(44)
+        menu_button.setFixedHeight(44)
+        menu_button.setIconSize(QSize(24, 24))
         menu_button.setToolTip("القائمة")
         menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(menu_button)
@@ -462,15 +468,15 @@ class MainWindow(QMainWindow):
             )
             reduced = self.settings.value("reduced_motion", False, type=bool)
             self.animations.set_reduced_motion(reduced)
-            self.sidebar.reduced_motion = reduced
+            self.sidebar.set_reduced_motion(reduced)
             self.theme_button.reduced_motion = reduced
             self.theme_button.set_theme(theme)
             self.sidebar.set_theme(theme)
-            self.notification_button.setIcon(icon("bell", theme=theme))
-            self.help_button.setIcon(icon("circle-help", theme=theme))
+            self.notification_button.setIcon(icon("bell", theme=theme, size=24))
+            self.help_button.setIcon(icon("circle-help", theme=theme, size=24))
             menu_button = self.findChild(QToolButton, "mainMenuButton")
             if menu_button:
-                menu_button.setIcon(icon("menu", theme=theme))
+                menu_button.setIcon(icon("menu", theme=theme, size=24))
             for page in self.page_map.values():
                 if hasattr(page, "set_theme"):
                     page.set_theme(theme)

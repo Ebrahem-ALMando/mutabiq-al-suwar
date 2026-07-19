@@ -1,5 +1,5 @@
 #define MyAppName "مُطابق الصور"
-#define MyAppVersion "2.1.0"
+#define MyAppVersion "2.1.1"
 #define MyAppExeName "MutabiqAlSuwar.exe"
 
 [Setup]
@@ -9,7 +9,7 @@ AppVersion={#MyAppVersion}
 DefaultDirName={localappdata}\Programs\MutabiqAlSuwar
 DefaultGroupName={#MyAppName}
 OutputDir=..\installer-output
-OutputBaseFilename=MutabiqAlSuwar-Setup-2.1.0
+OutputBaseFilename=MutabiqAlSuwar-Setup-2.1.1
 SetupIconFile=..\assets\icons\app.ico
 Compression=lzma2
 SolidCompression=yes

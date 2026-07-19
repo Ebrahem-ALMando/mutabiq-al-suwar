@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import QApplication, QTableView
+
+from ui.components.inputs import install_compound_input_style
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +177,7 @@ def qt_palette(theme: str = "light", high_contrast: bool = False) -> QPalette:
 def apply_application_theme(
     app: QApplication, theme: str, large_text: bool = False, high_contrast: bool = False
 ) -> None:
+    install_compound_input_style(app)
     app.setProperty("active_theme", theme)
     app.setProperty("high_contrast", high_contrast)
     app.setPalette(qt_palette(theme, high_contrast))
@@ -195,6 +199,10 @@ def apply_application_theme(
 def stylesheet(theme: str = "light", large_text: bool = False, high_contrast: bool = False) -> str:
     c = colors_for(theme, high_contrast)
     size = 14 if large_text else 13
+    controls = Path(__file__).resolve().parents[1] / "assets" / "icons" / "controls"
+    arrow_variant = "dark" if theme == "dark" else "light"
+    arrow_up = (controls / f"chevron-up-{arrow_variant}.svg").as_posix()
+    arrow_down = (controls / f"chevron-down-{arrow_variant}.svg").as_posix()
     return f"""
     * {{ font-family: "Tajawal", "Segoe UI", Arial; font-size: {size}px; }}
     QMainWindow, QWidget#appRoot {{ background: {c['background_primary']}; color: {c['text_primary']}; }}
@@ -228,17 +236,25 @@ def stylesheet(theme: str = "light", large_text: bool = False, high_contrast: bo
     QPushButton#heroPrimary {{ color: {c['text_on_gold']}; background: {c['gold']}; border-color: {c['gold']}; font-weight: 700; }}
     QPushButton#heroPrimary:hover {{ background: {c['gold_muted']}; border-color: {c['gold_muted']}; }}
     QPushButton[severity="error"] {{ color: {c['text_on_error']}; background: {c['error']}; border-color: {c['error']}; font-weight: 700; }}
-    QPushButton#navButton {{ color: {c['nav_text']}; text-align: right; border: none; background: transparent; padding: 0 14px; }}
-    QPushButton#navButton:hover {{ background: {c['surface_hover']}; color: {c['text_primary']}; }}
-    QPushButton#navButton:checked {{ background: {c['primary']}; color: {c['text_on_primary']}; font-weight: 700; }}
+    QToolButton#mainMenuButton, QPushButton#helpButton {{ min-width: 42px; max-width: 42px; min-height: 42px; max-height: 42px; padding: 0; }}
+    QPushButton#notificationButton {{ min-width: 42px; max-width: 72px; min-height: 42px; max-height: 42px; padding: 0 8px; }}
+    QToolButton#mainMenuButton::menu-indicator {{ image: none; width: 0; height: 0; }}
     QPushButton#segmentButton {{ min-height: 34px; border: none; background: transparent; padding: 0 12px; }}
     QPushButton#segmentButton:checked {{ color: {c['primary']}; background: {c['surface_primary']}; border: 1px solid {c['border_default']}; font-weight: 700; }}
     QPushButton#wizardStep {{ min-height: 44px; color: {c['text_secondary']}; background: transparent; border: none; border-bottom: 3px solid {c['border_default']}; border-radius: 0; }}
     QPushButton#wizardStep[current="true"] {{ color: {c['primary']}; border-bottom-color: {c['gold']}; font-weight: 700; }}
     QPushButton#wizardStep[complete="true"] {{ color: {c['primary']}; border-bottom-color: {c['primary']}; }}
-    QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit {{ color: {c['input_text']}; background: {c['input_background']}; selection-color: {c['selection_text']}; selection-background-color: {c['selection_background']}; min-height: {TOKENS.input_height}px; border: 1px solid {c['border_default']}; border-radius: 8px; padding: 0 10px; }}
-    QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus {{ border: 2px solid {c['border_focus']}; }}
-    QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QDateEdit:disabled {{ color: {c['text_disabled']}; background: {c['surface_disabled']}; }}
+    QLineEdit, QTextEdit, QPlainTextEdit {{ color: {c['input_text']}; background: {c['input_background']}; selection-color: {c['selection_text']}; selection-background-color: {c['selection_background']}; min-height: {TOKENS.input_height}px; border: 1px solid {c['border_default']}; border-radius: 8px; padding: 0 10px; }}
+    QComboBox {{ color: {c['input_text']}; background: {c['input_background']}; selection-color: {c['selection_text']}; selection-background-color: {c['selection_background']}; min-height: 42px; border: 1px solid {c['border_default']}; border-radius: 8px; padding: 0 10px 0 42px; }}
+    QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit, QDateTimeEdit {{ color: {c['input_text']}; background: {c['input_background']}; selection-color: {c['selection_text']}; selection-background-color: {c['selection_background']}; min-height: 42px; border: 1px solid {c['border_default']}; border-radius: 8px; padding: 0 40px 0 10px; }}
+    QComboBox::drop-down {{ subcontrol-origin: border; subcontrol-position: center left; width: 36px; border: none; border-right: 1px solid {c['border_default']}; border-top-left-radius: 7px; border-bottom-left-radius: 7px; background: {c['surface_secondary']}; }}
+    QComboBox::down-arrow {{ image: url("{arrow_down}"); width: 14px; height: 14px; }}
+    QSpinBox::up-button, QDoubleSpinBox::up-button, QDateEdit::up-button, QTimeEdit::up-button, QDateTimeEdit::up-button {{ subcontrol-origin: border; subcontrol-position: top right; width: 32px; height: 20px; border: none; border-left: 1px solid {c['border_default']}; border-bottom: 1px solid {c['border_default']}; border-top-right-radius: 7px; background: {c['surface_secondary']}; }}
+    QSpinBox::down-button, QDoubleSpinBox::down-button, QDateEdit::down-button, QTimeEdit::down-button, QDateTimeEdit::down-button {{ subcontrol-origin: border; subcontrol-position: bottom right; width: 32px; height: 20px; border: none; border-left: 1px solid {c['border_default']}; border-bottom-right-radius: 7px; background: {c['surface_secondary']}; }}
+    QSpinBox::up-arrow, QDoubleSpinBox::up-arrow, QDateEdit::up-arrow, QTimeEdit::up-arrow, QDateTimeEdit::up-arrow {{ image: url("{arrow_up}"); width: 12px; height: 12px; }}
+    QSpinBox::down-arrow, QDoubleSpinBox::down-arrow, QDateEdit::down-arrow, QTimeEdit::down-arrow, QDateTimeEdit::down-arrow {{ image: url("{arrow_down}"); width: 12px; height: 12px; }}
+    QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus {{ border: 2px solid {c['border_focus']}; }}
+    QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QDateEdit:disabled, QTimeEdit:disabled, QDateTimeEdit:disabled {{ color: {c['text_disabled']}; background: {c['surface_disabled']}; }}
     QComboBox QAbstractItemView {{ color: {c['menu_text']}; background: {c['menu_background']}; selection-color: {c['selection_text']}; selection-background-color: {c['selection_background']}; border: 1px solid {c['border_default']}; outline: 0; }}
     QCheckBox, QRadioButton, QGroupBox {{ color: {c['text_primary']}; background: transparent; spacing: 8px; }}
     QCheckBox::indicator, QRadioButton::indicator {{ width: 18px; height: 18px; border: 2px solid {c['border_default']}; background: {c['input_background']}; }}

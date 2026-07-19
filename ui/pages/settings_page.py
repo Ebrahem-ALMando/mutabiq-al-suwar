@@ -8,20 +8,19 @@ from PySide6.QtCore import QSettings, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QDoubleSpinBox,
     QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QPushButton,
-    QSpinBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from repositories.history_repository import HistoryRepository
+from ui.components.inputs import NumericDoubleSpinBox, NumericSpinBox
 from ui.dialogs import confirm_dialog, message_dialog
 from utils.app_paths import AppPaths
 
@@ -78,12 +77,12 @@ class SettingsPage(QWidget):
                 [("السمة", self.theme), ("", self.large_text), ("", self.high_contrast), ("", self.reduced_motion)],
             )
         )
-        fuzzy = QDoubleSpinBox()
+        fuzzy = NumericDoubleSpinBox()
         fuzzy.setRange(0.5, 0.99)
         fuzzy.setValue(float(settings.value("fuzzy_threshold", 0.82)))
         fuzzy.valueChanged.connect(lambda value: settings.setValue("fuzzy_threshold", value))
         self.stack.addWidget(self._form_page("إعدادات المطابقة الافتراضية", [("حد الاقتراح التقريبي", fuzzy)]))
-        retries = QSpinBox()
+        retries = NumericSpinBox()
         retries.setRange(0, 10)
         retries.setValue(settings.value("retry_count", 2, type=int))
         retries.valueChanged.connect(lambda value: settings.setValue("retry_count", value))
