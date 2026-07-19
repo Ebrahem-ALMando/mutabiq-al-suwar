@@ -1,0 +1,9 @@
+-r requirements.txt
+pytest>=8.2,<9
+pytest-qt>=4.4,<5
+pyinstaller>=6.9,<7
+ruff>=0.12,<1
+black>=25.1,<26
+mypy>=1.16,<2
+psutil>=7,<8
+

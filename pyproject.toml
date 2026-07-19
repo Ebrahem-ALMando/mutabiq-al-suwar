@@ -1,0 +1,25 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["performance: repeatable synthetic performance tests"]
+qt_api = "pyside6"
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+exclude = "(\\.venv|\\.tools|build|dist)"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [".venv", ".tools", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+ignore_missing_imports = true
+files = ["models", "repositories", "services", "utils", "workers"]
+exclude = "(\\.venv|\\.tools|build|dist|ui|tests)"

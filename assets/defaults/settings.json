@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "theme": "light",
+  "language": "ar",
+  "fuzzy_threshold": 0.82,
+  "retry_count": 2,
+  "telemetry": false,
+  "update_checks": false
+}
+
