@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from models.result_models import JobResult
 from utils.constants import SUPPORTED_IMAGE_EXTENSIONS
@@ -21,9 +21,10 @@ from utils.version import DATABASE_SCHEMA_VERSION
 class ClosingConnection(sqlite3.Connection):
     """اتصال يغلق المقبض فعلياً عند مغادرة سياق with على Windows."""
 
-    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+    def __exit__(self, exc_type, exc_value, traceback) -> Literal[False]:
         try:
-            return bool(super().__exit__(exc_type, exc_value, traceback))
+            super().__exit__(exc_type, exc_value, traceback)
+            return False
         finally:
             self.close()
 

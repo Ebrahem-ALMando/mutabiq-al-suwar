@@ -329,17 +329,26 @@ class ProcessingService:
                     logger.info("تم إنشاء التقرير: %s", result.report_path)
                 except Exception as exc:
                     logger.exception("فشل إنشاء التقرير")
-                    raise RuntimeError("تعذر إنشاء تقرير Excel. راجع ملف السجل للتفاصيل.") from exc
-                emit("إنشاء التقرير", 1, 1, result.report_path.name)
+                    result.report_error = f"تعذر إنشاء تقرير Excel: {exc}"
+                emit("إنشاء التقرير", 1, 1, result.report_path.name if result.report_path else "")
 
         stats.elapsed_seconds = time.monotonic() - started
         result.finished_at = datetime.now(UTC).isoformat()
         if not preview_only:
             if settings.generate_manifest and self.manifests:
-                result.manifest_path = self.manifests.create(result)
-                logger.info("تم إنشاء منشور العملية: %s", result.manifest_path)
+                try:
+                    result.manifest_path = self.manifests.create(result)
+                    logger.info("تم إنشاء منشور العملية: %s", result.manifest_path)
+                except Exception as exc:
+                    logger.exception("فشل حفظ منشور العملية")
+                    result.post_processing_errors.append(f"تعذر حفظ منشور العملية: {exc}")
             if self.history:
-                self.history.record_result(result)
+                try:
+                    self.history.record_result(result)
+                    logger.info("تم حفظ سجل العملية")
+                except Exception as exc:
+                    logger.exception("فشل حفظ سجل العملية")
+                    result.post_processing_errors.append(f"تعذر حفظ سجل العملية: {exc}")
         emit("تم إكمال العملية" if not result.cancelled else "تم إلغاء العملية", 1, 1)
         logger.info("النتيجة النهائية: %s", stats.as_dict())
         return result

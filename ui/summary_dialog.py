@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
@@ -28,9 +28,11 @@ def open_path(path: Path) -> bool:
 class SummaryDialog(QDialog):
     """يعرض الإحصاءات النهائية وروابط التقرير والوجهة."""
 
+    openFailed = Signal(str)
+
     def __init__(self, result: JobResult, parent=None) -> None:
         super().__init__(parent)
-        self.result = result
+        self.job_result = result
         self.setWindowTitle("ملخص العملية")
         self.setMinimumSize(700, 520)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -38,13 +40,14 @@ class SummaryDialog(QDialog):
         layout.setSpacing(16)
 
         outcome = {
-            "success": ("اكتملت العملية بنجاح", "#166534"),
-            "partial": ("اكتملت العملية مع ملاحظات", "#9A6700"),
-            "failure": ("تعذر إكمال العملية", "#B42318"),
-            "cancelled": ("تم إلغاء العملية", "#9A6700"),
+            "success": ("اكتملت العملية بنجاح", "success"),
+            "partial": ("اكتملت العملية مع ملاحظات", "warning"),
+            "failure": ("تعذر إكمال العملية", "error"),
+            "cancelled": ("تم إلغاء العملية", "warning"),
         }[result.outcome]
         heading = QLabel(outcome[0])
-        heading.setStyleSheet(f"font-size: 21px; font-weight: 700; color: {outcome[1]};")
+        heading.setObjectName("sectionTitle")
+        heading.setProperty("severity", outcome[1])
         layout.addWidget(heading)
         if result.settings.dry_run:
             simulation = QLabel("محاكاة مكتملة: لم تُنسخ أي ملفات ولم تتغير ملفات المصدر أو الوجهة.")
@@ -85,14 +88,21 @@ class SummaryDialog(QDialog):
         paths.setWordWrap(True)
         paths.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(paths)
+        post_errors = [item for item in [result.report_error, *result.post_processing_errors] if item]
+        if post_errors:
+            warning = QLabel("اكتمل نسخ الصور، لكن تعذرت بعض خطوات ما بعد المعالجة:\n" + "\n".join(post_errors))
+            warning.setProperty("severity", "warning")
+            warning.setWordWrap(True)
+            warning.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            layout.addWidget(warning)
 
         actions = QHBoxLayout()
         open_destination = QPushButton("فتح مجلد النتائج")
-        open_destination.clicked.connect(lambda: open_path(result.settings.destination_folder))
+        open_destination.clicked.connect(lambda: self._try_open(result.settings.destination_folder, "مجلد النتائج"))
         actions.addWidget(open_destination)
         open_report = QPushButton("فتح التقرير")
         open_report.setEnabled(bool(result.report_path and result.report_path.exists()))
-        open_report.clicked.connect(lambda: result.report_path and open_path(result.report_path))
+        open_report.clicked.connect(lambda: result.report_path and self._try_open(result.report_path, "التقرير"))
         actions.addWidget(open_report)
         show_missing = QPushButton("عرض الملفات غير الموجودة")
         show_missing.clicked.connect(lambda: self.done(2))
@@ -102,3 +112,10 @@ class SummaryDialog(QDialog):
         buttons.button(QDialogButtonBox.StandardButton.Close).setText("إغلاق")
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _try_open(self, path: Path, label: str) -> None:
+        try:
+            if not open_path(path):
+                self.openFailed.emit(f"تعذر فتح {label}. تحقق من أن المسار ما زال متاحًا.")
+        except Exception as exc:
+            self.openFailed.emit(f"تعذر فتح {label}: {exc}")

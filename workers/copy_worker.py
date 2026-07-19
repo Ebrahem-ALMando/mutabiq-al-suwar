@@ -18,11 +18,11 @@ from utils.app_paths import AppPaths
 class CopyWorker(QObject):
     """غلاف إشارات Qt لخدمة المعالجة القابلة للإلغاء."""
 
-    progress = Signal(str, int, int, str, object)
-    completed = Signal(object)
-    failed = Signal(str, str)
-    cancelled = Signal(object)
-    finished = Signal()
+    progress = Signal(str, str, int, int, str, object)
+    processing_completed = Signal(str, object)
+    processing_failed = Signal(str, str, str)
+    processing_cancelled = Signal(str, object)
+    worker_finished = Signal()
 
     def __init__(
         self,
@@ -31,6 +31,7 @@ class CopyWorker(QObject):
         log_directory: Path,
         app_paths: AppPaths | None = None,
         prepared_result=None,
+        operation_id: str = "",
     ) -> None:
         super().__init__()
         self.settings = settings
@@ -38,9 +39,22 @@ class CopyWorker(QObject):
         self.log_directory = log_directory
         self.app_paths = app_paths
         self.prepared_result = prepared_result
+        self.operation_id = operation_id
         self._cancel_event = threading.Event()
         self._pause_condition = threading.Condition()
         self._paused = False
+        self._terminal_emitted = False
+
+    def _emit_terminal(self, kind: str, *args) -> None:
+        if self._terminal_emitted:
+            return
+        self._terminal_emitted = True
+        if kind == "completed":
+            self.processing_completed.emit(self.operation_id, *args)
+        elif kind == "cancelled":
+            self.processing_cancelled.emit(self.operation_id, *args)
+        else:
+            self.processing_failed.emit(self.operation_id, *args)
 
     @Slot()
     def run(self) -> None:
@@ -57,7 +71,9 @@ class CopyWorker(QObject):
                 self.settings,
                 self.preview_only,
                 logger,
-                event=lambda stage, current, total, item, stats: self.progress.emit(stage, current, total, item, stats),
+                event=lambda stage, current, total, item, stats: self.progress.emit(
+                    self.operation_id, stage, current, total, item, stats
+                ),
                 cancelled=self._cancel_event.is_set,
                 wait_if_paused=self._wait_if_paused,
                 overrides=self.prepared_result,
@@ -65,21 +81,23 @@ class CopyWorker(QObject):
             result.log_path = log_path
             if result.cancelled:
                 logger.warning("ألغى المستخدم العملية")
-                self.cancelled.emit(result)
+                self._emit_terminal("cancelled", result)
             else:
-                self.completed.emit(result)
+                self._emit_terminal("completed", result)
         except (FileNotFoundError, PermissionError, ValueError, RuntimeError) as exc:
             if logger:
                 logger.exception("تعذر إكمال العملية")
-            self.failed.emit(str(exc), str(log_path))
+            self._emit_terminal("failed", str(exc), str(log_path))
         except Exception:
             if logger:
                 logger.exception("خطأ غير متوقع")
-            self.failed.emit("حدث خطأ غير متوقع. راجع ملف السجل للتفاصيل.", str(log_path))
+            self._emit_terminal("failed", "حدث خطأ غير متوقع. راجع ملف السجل للتفاصيل.", str(log_path))
         finally:
             if logger:
                 close_job_logger(logger)
-            self.finished.emit()
+            if not self._terminal_emitted:
+                self._emit_terminal("failed", "انتهى العامل دون نتيجة نهائية.", str(log_path))
+            self.worker_finished.emit()
 
     @Slot()
     def cancel(self) -> None:

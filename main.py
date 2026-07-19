@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+import gc
 import logging
 import sys
+import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QTimer, Qt
+from PySide6.QtCore import QCoreApplication, Qt, qInstallMessageHandler
 from PySide6.QtGui import QFont, QFontDatabase
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication
 
 from services.logging_service import close_job_logger, create_job_logger
+from ui.dialogs import message_dialog
 from ui.premium_window import MainWindow
-from ui.theme import stylesheet
+from ui.theme import apply_application_theme
 from utils.app_paths import AppPaths
 from utils.constants import APP_ORGANIZATION, SETTINGS_APP_NAME
+from utils.lifecycle_smoke import start_lifecycle_smoke
 from utils.version import APP_VERSION
 
 
@@ -29,8 +33,14 @@ def project_root() -> Path:
 def asset_root() -> Path:
     """أعد مسار الأصول المضمّنة في المصدر أو PyInstaller."""
 
+    return resource_root() / "assets"
+
+
+def resource_root() -> Path:
+    """Return the read-only resource root in source, one-folder, or one-file builds."""
+
     bundle = getattr(sys, "_MEIPASS", None)
-    return Path(bundle) / "assets" if bundle else project_root() / "assets"
+    return Path(bundle) if bundle else project_root()
 
 
 def load_application_font(app: QApplication) -> None:
@@ -56,32 +66,63 @@ def main() -> int:
     QCoreApplication.setOrganizationName(APP_ORGANIZATION)
     QCoreApplication.setApplicationName(SETTINGS_APP_NAME)
     QCoreApplication.setApplicationVersion(APP_VERSION)
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(True)
     app.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
     load_application_font(app)
-    app.setStyleSheet(stylesheet("light"))
-    root = project_root()
-    paths = AppPaths.create()
+    apply_application_theme(app, "light")
+    root = resource_root()
+    smoke_directory = (
+        tempfile.TemporaryDirectory(prefix="mutabiq-smoke-data-", ignore_cleanup_errors=True)
+        if "--smoke-test" in sys.argv
+        else None
+    )
+    paths = AppPaths.create(Path(smoke_directory.name) / "appdata" if smoke_directory else None)
     logging.basicConfig(level=logging.INFO)
     startup_logger = None
     try:
         startup_logger, startup_log_path = create_job_logger(paths.logs)
+        original_hook = sys.excepthook
+
+        def exception_hook(exception_type, exception, traceback_object) -> None:
+            startup_logger.exception(
+                "Unhandled Python exception", exc_info=(exception_type, exception, traceback_object)
+            )
+            original_hook(exception_type, exception, traceback_object)
+
+        def qt_message_handler(message_type, context, message) -> None:
+            startup_logger.warning(
+                "Qt message; type=%s file=%s line=%s message=%s",
+                message_type,
+                getattr(context, "file", ""),
+                getattr(context, "line", 0),
+                message,
+            )
+
+        sys.excepthook = exception_hook
+        qInstallMessageHandler(qt_message_handler)
         startup_logger.info("بدء تشغيل التطبيق %s؛ Python=%s؛ root=%s", APP_VERSION, sys.version, root)
-        window = MainWindow(root, paths)
+        window = MainWindow(root, paths, startup_logger)
         window.show()
         if "--smoke-test" in sys.argv:
-            QTimer.singleShot(700, app.quit)
+            start_lifecycle_smoke(window, app, startup_logger)
         exit_code = app.exec()
+        if smoke_directory:
+            window.close()
+            window.deleteLater()
+            app.processEvents()
+            gc.collect()
         startup_logger.info("إغلاق التطبيق؛ exit_code=%d", exit_code)
         return exit_code
     except Exception:
         logging.exception("Fatal application startup error")
-        QMessageBox.critical(None, "خطأ", "تعذر بدء التطبيق. راجع سجل النظام للتفاصيل.")
+        message_dialog(None, "خطأ", "تعذر بدء التطبيق. راجع سجل النظام للتفاصيل.", severity="error").exec()
         return 1
     finally:
         if startup_logger:
             close_job_logger(startup_logger)
+        if smoke_directory:
+            smoke_directory.cleanup()
 
 
 if __name__ == "__main__":

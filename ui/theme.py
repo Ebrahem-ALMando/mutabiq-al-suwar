@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QColor, QFont, QPalette
+from PySide6.QtWidgets import QApplication, QTableView
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,40 +22,102 @@ TOKENS = DesignTokens()
 
 PALETTES: dict[str, dict[str, str]] = {
     "light": {
-        "background_primary": "#F3F6F8", "background_secondary": "#E9EFF3",
-        "surface_primary": "#FFFFFF", "surface_secondary": "#EAF0F3", "surface_elevated": "#FFFFFF",
-        "surface_hover": "#E1F1F2", "surface_pressed": "#CDE7E9", "surface_selected": "#D4ECEE",
-        "surface_disabled": "#E3E8EB", "text_primary": "#142A3A", "text_secondary": "#415866",
-        "text_muted": "#5D707B", "text_disabled": "#687982", "text_on_primary": "#FFFFFF",
-        "text_on_success": "#FFFFFF", "text_on_warning": "#1C1608", "text_on_error": "#FFFFFF",
-        "border_default": "#B8C7CF", "border_subtle": "#D7E1E6", "border_focus": "#087B83",
-        "primary": "#087B83", "primary_hover": "#066970", "primary_pressed": "#05575D",
-        "success": "#13734E", "success_background": "#DDF4E9", "warning": "#D99A19",
-        "warning_background": "#FFF1CE", "error": "#B93640", "error_background": "#FBE3E5",
-        "info": "#1769A6", "info_background": "#DDEDFC", "selection_background": "#087B83",
-        "selection_text": "#FFFFFF", "input_background": "#FFFFFF", "input_text": "#142A3A",
-        "input_placeholder": "#667985", "tooltip_background": "#102E42", "tooltip_text": "#FFFFFF",
-        "menu_background": "#FFFFFF", "menu_text": "#142A3A", "dialog_background": "#FFFFFF",
-        "dialog_text": "#142A3A", "overlay_background": "#52606B", "scrollbar_track": "#E5EBEF",
-        "scrollbar_handle": "#8799A4", "nav_background": "#102E42", "nav_text": "#E5F0F4",
+        "background_primary": "#F3F6F8",
+        "background_secondary": "#E9EFF3",
+        "surface_primary": "#FFFFFF",
+        "surface_secondary": "#EAF0F3",
+        "surface_elevated": "#FFFFFF",
+        "surface_hover": "#E1F1F2",
+        "surface_pressed": "#CDE7E9",
+        "surface_selected": "#D4ECEE",
+        "surface_disabled": "#E3E8EB",
+        "text_primary": "#142A3A",
+        "text_secondary": "#415866",
+        "text_muted": "#5D707B",
+        "text_disabled": "#687982",
+        "text_on_primary": "#FFFFFF",
+        "text_on_success": "#FFFFFF",
+        "text_on_warning": "#1C1608",
+        "text_on_error": "#FFFFFF",
+        "border_default": "#B8C7CF",
+        "border_subtle": "#D7E1E6",
+        "border_focus": "#087B83",
+        "primary": "#087B83",
+        "primary_hover": "#066970",
+        "primary_pressed": "#05575D",
+        "success": "#13734E",
+        "success_background": "#DDF4E9",
+        "warning": "#D99A19",
+        "warning_background": "#FFF1CE",
+        "error": "#B93640",
+        "error_background": "#FBE3E5",
+        "info": "#1769A6",
+        "info_background": "#DDEDFC",
+        "selection_background": "#087B83",
+        "selection_text": "#FFFFFF",
+        "input_background": "#FFFFFF",
+        "input_text": "#142A3A",
+        "input_placeholder": "#667985",
+        "tooltip_background": "#102E42",
+        "tooltip_text": "#FFFFFF",
+        "menu_background": "#FFFFFF",
+        "menu_text": "#142A3A",
+        "dialog_background": "#FFFFFF",
+        "dialog_text": "#142A3A",
+        "overlay_background": "#52606B",
+        "scrollbar_track": "#E5EBEF",
+        "scrollbar_handle": "#8799A4",
+        "nav_background": "#102E42",
+        "nav_text": "#E5F0F4",
     },
     "dark": {
-        "background_primary": "#0D1821", "background_secondary": "#101F29",
-        "surface_primary": "#14232E", "surface_secondary": "#1A2D39", "surface_elevated": "#203542",
-        "surface_hover": "#23424C", "surface_pressed": "#294D57", "surface_selected": "#174C51",
-        "surface_disabled": "#22323C", "text_primary": "#EDF5F7", "text_secondary": "#C4D1D7",
-        "text_muted": "#A8B7BF", "text_disabled": "#8B9AA2", "text_on_primary": "#071719",
-        "text_on_success": "#071A11", "text_on_warning": "#1A1406", "text_on_error": "#21090B",
-        "border_default": "#4C6471", "border_subtle": "#304854", "border_focus": "#64D4D5",
-        "primary": "#65D4D5", "primary_hover": "#82E0E1", "primary_pressed": "#46BABB",
-        "success": "#68D8A4", "success_background": "#15392C", "warning": "#F2C45C",
-        "warning_background": "#453616", "error": "#FA8C92", "error_background": "#472126",
-        "info": "#83C7F4", "info_background": "#19394E", "selection_background": "#65D4D5",
-        "selection_text": "#071719", "input_background": "#182A35", "input_text": "#EDF5F7",
-        "input_placeholder": "#A5B4BC", "tooltip_background": "#EDF5F7", "tooltip_text": "#0D1821",
-        "menu_background": "#203542", "menu_text": "#EDF5F7", "dialog_background": "#14232E",
-        "dialog_text": "#EDF5F7", "overlay_background": "#05090D", "scrollbar_track": "#162630",
-        "scrollbar_handle": "#647C89", "nav_background": "#09141C", "nav_text": "#E2EEF2",
+        "background_primary": "#0D1821",
+        "background_secondary": "#101F29",
+        "surface_primary": "#14232E",
+        "surface_secondary": "#1A2D39",
+        "surface_elevated": "#203542",
+        "surface_hover": "#23424C",
+        "surface_pressed": "#294D57",
+        "surface_selected": "#174C51",
+        "surface_disabled": "#22323C",
+        "text_primary": "#EDF5F7",
+        "text_secondary": "#C4D1D7",
+        "text_muted": "#A8B7BF",
+        "text_disabled": "#8B9AA2",
+        "text_on_primary": "#071719",
+        "text_on_success": "#071A11",
+        "text_on_warning": "#1A1406",
+        "text_on_error": "#21090B",
+        "border_default": "#4C6471",
+        "border_subtle": "#304854",
+        "border_focus": "#64D4D5",
+        "primary": "#65D4D5",
+        "primary_hover": "#82E0E1",
+        "primary_pressed": "#46BABB",
+        "success": "#68D8A4",
+        "success_background": "#15392C",
+        "warning": "#F2C45C",
+        "warning_background": "#453616",
+        "error": "#FA8C92",
+        "error_background": "#472126",
+        "info": "#83C7F4",
+        "info_background": "#19394E",
+        "selection_background": "#65D4D5",
+        "selection_text": "#071719",
+        "input_background": "#182A35",
+        "input_text": "#EDF5F7",
+        "input_placeholder": "#A5B4BC",
+        "tooltip_background": "#EDF5F7",
+        "tooltip_text": "#0D1821",
+        "menu_background": "#203542",
+        "menu_text": "#EDF5F7",
+        "dialog_background": "#14232E",
+        "dialog_text": "#EDF5F7",
+        "overlay_background": "#05090D",
+        "scrollbar_track": "#162630",
+        "scrollbar_handle": "#647C89",
+        "nav_background": "#09141C",
+        "nav_text": "#E2EEF2",
     },
 }
 
@@ -72,12 +134,18 @@ def qt_palette(theme: str = "light", high_contrast: bool = False) -> QPalette:
     c = colors_for(theme, high_contrast)
     palette = QPalette()
     roles = {
-        QPalette.ColorRole.Window: "background_primary", QPalette.ColorRole.WindowText: "text_primary",
-        QPalette.ColorRole.Base: "input_background", QPalette.ColorRole.AlternateBase: "surface_secondary",
-        QPalette.ColorRole.ToolTipBase: "tooltip_background", QPalette.ColorRole.ToolTipText: "tooltip_text",
-        QPalette.ColorRole.Text: "input_text", QPalette.ColorRole.Button: "surface_primary",
-        QPalette.ColorRole.ButtonText: "text_primary", QPalette.ColorRole.Highlight: "selection_background",
-        QPalette.ColorRole.HighlightedText: "selection_text", QPalette.ColorRole.PlaceholderText: "input_placeholder",
+        QPalette.ColorRole.Window: "background_primary",
+        QPalette.ColorRole.WindowText: "text_primary",
+        QPalette.ColorRole.Base: "input_background",
+        QPalette.ColorRole.AlternateBase: "surface_secondary",
+        QPalette.ColorRole.ToolTipBase: "tooltip_background",
+        QPalette.ColorRole.ToolTipText: "tooltip_text",
+        QPalette.ColorRole.Text: "input_text",
+        QPalette.ColorRole.Button: "surface_primary",
+        QPalette.ColorRole.ButtonText: "text_primary",
+        QPalette.ColorRole.Highlight: "selection_background",
+        QPalette.ColorRole.HighlightedText: "selection_text",
+        QPalette.ColorRole.PlaceholderText: "input_placeholder",
         QPalette.ColorRole.Link: "info",
     }
     for role, token in roles.items():
@@ -88,11 +156,19 @@ def qt_palette(theme: str = "light", high_contrast: bool = False) -> QPalette:
     return palette
 
 
-def apply_application_theme(app: QApplication, theme: str, large_text: bool = False, high_contrast: bool = False) -> None:
+def apply_application_theme(
+    app: QApplication, theme: str, large_text: bool = False, high_contrast: bool = False
+) -> None:
+    app.setProperty("active_theme", theme)
+    app.setProperty("high_contrast", high_contrast)
     app.setPalette(qt_palette(theme, high_contrast))
     app.setStyleSheet(stylesheet(theme, large_text, high_contrast))
     for widget in app.topLevelWidgets():
         widget.setPalette(app.palette())
+        for table in widget.findChildren(QTableView):
+            table.setFont(QFont("Tajawal", table.font().pointSize()))
+            table.horizontalHeader().setFont(QFont("Tajawal", table.font().pointSize()))
+            table.verticalHeader().setFont(QFont("Tajawal", table.font().pointSize()))
         widget.style().unpolish(widget)
         widget.style().polish(widget)
         widget.update()
@@ -115,9 +191,9 @@ def stylesheet(theme: str = "light", large_text: bool = False, high_contrast: bo
     QLabel#pageDescription, QLabel#muted {{ color: {c['text_muted']}; }}
     QLabel#sectionTitle {{ color: {c['text_primary']}; font-size: 16px; font-weight: 600; }}
     QLabel#statValue {{ color: {c['primary']}; font-size: 24px; font-weight: 700; }}
-    QLabel[severity="success"] {{ color: {c['success']}; }}
-    QLabel[severity="warning"] {{ color: {c['warning']}; }}
-    QLabel[severity="error"] {{ color: {c['error']}; }}
+    QLabel[severity="success"], QLabel#sectionTitle[severity="success"] {{ color: {c['success']}; }}
+    QLabel[severity="warning"], QLabel#sectionTitle[severity="warning"] {{ color: {c['warning']}; }}
+    QLabel[severity="error"], QLabel#sectionTitle[severity="error"] {{ color: {c['error']}; }}
     QPushButton, QToolButton {{ color: {c['text_primary']}; min-height: {TOKENS.button_height}px; padding: 0 14px; border-radius: 8px; border: 1px solid {c['border_default']}; background: {c['surface_primary']}; }}
     QPushButton:hover, QToolButton:hover {{ background: {c['surface_hover']}; border-color: {c['primary']}; }}
     QPushButton:pressed, QToolButton:pressed {{ background: {c['surface_pressed']}; }}
@@ -125,6 +201,7 @@ def stylesheet(theme: str = "light", large_text: bool = False, high_contrast: bo
     QPushButton:disabled, QToolButton:disabled {{ color: {c['text_disabled']}; background: {c['surface_disabled']}; border-color: {c['border_subtle']}; }}
     QPushButton#primary {{ color: {c['text_on_primary']}; border-color: {c['primary']}; background: {c['primary']}; font-weight: 700; }}
     QPushButton#primary:hover {{ background: {c['primary_hover']}; }} QPushButton#primary:pressed {{ background: {c['primary_pressed']}; }}
+    QPushButton[severity="error"] {{ color: {c['text_on_error']}; background: {c['error']}; border-color: {c['error']}; font-weight: 700; }}
     QPushButton#navButton {{ color: {c['nav_text']}; text-align: right; border: none; background: transparent; padding: 0 14px; }}
     QPushButton#navButton:hover {{ background: {c['surface_hover']}; color: {c['text_primary']}; }}
     QPushButton#navButton:checked {{ background: {c['primary']}; color: {c['text_on_primary']}; font-weight: 700; }}
@@ -137,7 +214,7 @@ def stylesheet(theme: str = "light", large_text: bool = False, high_contrast: bo
     QGroupBox {{ border: 1px solid {c['border_subtle']}; border-radius: 8px; margin-top: 12px; padding-top: 8px; }}
     QTableView, QTableWidget, QListView, QTreeView {{ font-family: "Tajawal"; color: {c['input_text']}; background: {c['surface_primary']}; alternate-background-color: {c['surface_secondary']}; border: 1px solid {c['border_default']}; border-radius: 10px; gridline-color: {c['border_subtle']}; selection-background-color: {c['selection_background']}; selection-color: {c['selection_text']}; }}
     QTableView::item:selected, QTableWidget::item:selected, QListView::item:selected, QTreeView::item:selected {{ color: {c['selection_text']}; background: {c['selection_background']}; }}
-    QHeaderView, QHeaderView::section {{ font-family: "Tajawal"; color: {c['nav_text']}; background: {c['nav_background']}; border: none; padding: 9px; font-weight: 600; }}
+    QHeaderView, QHeaderView::section {{ font-family: "Tajawal"; color: {c['nav_text']}; background: {c['nav_background']}; border: none; min-height: 38px; padding: 4px 9px; font-weight: 600; }}
     QMenu, QMenuBar {{ color: {c['menu_text']}; background: {c['menu_background']}; border: 1px solid {c['border_default']}; }}
     QMenu::item:selected, QMenuBar::item:selected {{ color: {c['selection_text']}; background: {c['selection_background']}; }}
     QMenu::item:disabled {{ color: {c['text_disabled']}; }}

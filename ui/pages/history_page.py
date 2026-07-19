@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from repositories.history_repository import HistoryRepository
 from services.undo_service import UndoService
+from ui.dialogs import confirm_dialog, message_dialog
 from ui.summary_dialog import open_path
 
 
@@ -129,23 +129,25 @@ class HistoryPage(QWidget):
         try:
             manifest, candidates = UndoService(self.history).plan(Path(batch["manifest_path"]))
         except Exception as exc:
-            QMessageBox.warning(self, "التراجع غير متاح", str(exc))
+            message_dialog(self, "التراجع غير متاح", str(exc), severity="warning").exec()
             return
         safe = sum(item.safe for item in candidates)
         unsafe = len(candidates) - safe
-        answer = QMessageBox.question(
+        if not confirm_dialog(
             self,
             "تأكيد التراجع الآمن",
             f"سيُحذف {safe} ملفاً أنشأتها هذه الدفعة فقط. لن يُحذف {unsafe} ملفاً تغير أو لم يعد آمناً. هل تتابع؟",
-        )
-        if answer != QMessageBox.StandardButton.Yes:
+            confirm_text="تراجع آمن",
+            destructive=True,
+        ):
             return
         result = UndoService(self.history).execute(Path(batch["manifest_path"]), True)
-        QMessageBox.information(
+        message_dialog(
             self,
             "نتيجة التراجع",
             f"حُذف {len(result.removed)} ملفاً، وتُرك {len(result.skipped)} ملفاً.\n{result.report_path}",
-        )
+            severity="success",
+        ).exec()
         self.refresh()
         self.historyChanged.emit()
 
@@ -153,9 +155,12 @@ class HistoryPage(QWidget):
         batch = self.selected()
         if not batch:
             return
-        if (
-            QMessageBox.question(self, "حذف السجل", "سيُحذف سجل الدفعة فقط ولن تُحذف أي ملفات. هل تتابع؟")
-            != QMessageBox.StandardButton.Yes
+        if not confirm_dialog(
+            self,
+            "حذف السجل",
+            "سيُحذف سجل الدفعة فقط ولن تُحذف أي ملفات. هل تتابع؟",
+            confirm_text="حذف السجل",
+            destructive=True,
         ):
             return
         with self.history.connect() as connection:

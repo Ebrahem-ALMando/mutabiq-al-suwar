@@ -15,7 +15,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
     source = root / "assets" / "icons" / "app_logo.svg"
     target = root / "assets" / "icons" / "app.ico"
-    app = QApplication.instance() or QApplication([])
+    _app = QApplication.instance() or QApplication([])
     renderer = QSvgRenderer(str(source))
     image = QImage(256, 256, QImage.Format.Format_ARGB32)
     image.fill(0)
@@ -31,4 +31,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

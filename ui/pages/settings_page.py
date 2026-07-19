@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QStackedWidget,
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from repositories.history_repository import HistoryRepository
+from ui.dialogs import confirm_dialog, message_dialog
 from utils.app_paths import AppPaths
 
 
@@ -146,12 +146,15 @@ class SettingsPage(QWidget):
     def _clear_recent(self) -> None:
         for key in ("last_excel_file", "last_excel_folder", "last_source_folder", "last_destination_folder"):
             self.settings.remove(key)
-        QMessageBox.information(self, "تم المسح", "تم مسح المسارات الأخيرة.")
+        message_dialog(self, "تم المسح", "تم مسح المسارات الأخيرة.", severity="success").exec()
 
     def _clear_history(self) -> None:
-        if (
-            QMessageBox.question(self, "تأكيد", "سيُمسح السجل فقط ولن تُحذف الصور أو التقارير. هل تتابع؟")
-            == QMessageBox.StandardButton.Yes
+        if confirm_dialog(
+            self,
+            "تأكيد",
+            "سيُمسح السجل فقط ولن تُحذف الصور أو التقارير. هل تتابع؟",
+            confirm_text="مسح السجل",
+            destructive=True,
         ):
             self.history.clear_history()
 
@@ -161,7 +164,9 @@ class SettingsPage(QWidget):
             self.paths.thumbnails.mkdir(parents=True, exist_ok=True)
 
     def _clear_indexes(self) -> None:
-        if QMessageBox.question(self, "حذف الفهارس", "لن تُحذف أي صور. هل تتابع؟") != QMessageBox.StandardButton.Yes:
+        if not confirm_dialog(
+            self, "حذف الفهارس", "لن تُحذف أي صور. هل تتابع؟", confirm_text="حذف الفهارس", destructive=True
+        ):
             return
         with self.history.connect() as connection:
             connection.execute("DELETE FROM indexed_folders")

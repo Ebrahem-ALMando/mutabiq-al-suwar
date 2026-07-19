@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QProgressBar,
     QPushButton,
     QSpinBox,
@@ -28,6 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from models.operation_state import OperationState
 from models.result_models import (
     ColumnInfo,
     DuplicatePolicy,
@@ -40,6 +40,7 @@ from models.result_models import (
 )
 from services.excel_service import ExcelService
 from ui.components.drop_zone import DropZone
+from ui.dialogs import message_dialog
 from utils.constants import DUPLICATE_POLICY_AR, MULTIPLE_POLICY_AR, SUPPORTED_EXCEL_EXTENSIONS
 
 
@@ -305,7 +306,7 @@ class OperationPage(QWidget):
     def _next(self) -> None:
         error = self._step_error(self.current_step)
         if error:
-            QMessageBox.warning(self, "بيانات غير مكتملة", error)
+            message_dialog(self, "بيانات غير مكتملة", error, severity="warning").exec()
             return
         self.go_to(self.current_step + 1)
 
@@ -331,7 +332,7 @@ class OperationPage(QWidget):
         try:
             info = self.excel.workbook_info(path)
         except Exception as exc:
-            QMessageBox.warning(self, "ملف غير صالح", str(exc))
+            message_dialog(self, "ملف غير صالح", str(exc), severity="warning").exec()
             return
         self.excel_path = path
         self.excel_zone.set_path(path)
@@ -349,7 +350,7 @@ class OperationPage(QWidget):
             scores = self.excel.score_columns(self.excel_path, self.sheet_combo.currentText(), columns)
             preview = self.excel.preview_rows(self.excel_path, self.sheet_combo.currentText(), 12)
         except Exception as exc:
-            QMessageBox.warning(self, "تعذر قراءة البيانات", str(exc))
+            message_dialog(self, "تعذر قراءة البيانات", str(exc), severity="warning").exec()
             return
         self.column_combo.clear()
         self.secondary_combo.clear()
@@ -475,7 +476,7 @@ class OperationPage(QWidget):
         try:
             settings = self.build_settings()
         except ValueError as exc:
-            QMessageBox.warning(self, "بيانات ناقصة", str(exc))
+            message_dialog(self, "بيانات ناقصة", str(exc), severity="warning").exec()
             return
         self.previewRequested.emit(settings)
 
@@ -498,7 +499,7 @@ class OperationPage(QWidget):
 
     def _execute(self, dry_run: bool) -> None:
         if not self.preview_result:
-            QMessageBox.warning(self, "المعاينة مطلوبة", "شغّل المعاينة وراجع النتائج أولاً.")
+            message_dialog(self, "المعاينة مطلوبة", "شغّل المعاينة وراجع النتائج أولاً.", severity="warning").exec()
             return
         settings = self.build_settings(dry_run)
         self.simulation_banner.setVisible(dry_run)
@@ -516,6 +517,38 @@ class OperationPage(QWidget):
         if not active:
             self.pause_button.setChecked(False)
             self.pause_button.setText("إيقاف مؤقت")
+
+    def set_operation_state(self, state: OperationState) -> None:
+        """Derive processing controls and visible status from one lifecycle state."""
+
+        active_states = {
+            OperationState.VALIDATING,
+            OperationState.SCANNING,
+            OperationState.MATCHING,
+            OperationState.COPYING,
+            OperationState.GENERATING_REPORT,
+            OperationState.FINALIZING,
+            OperationState.PAUSED,
+        }
+        self.set_processing(state in active_states)
+        labels = {
+            OperationState.IDLE: "جاهز",
+            OperationState.VALIDATING: "جارٍ التحقق من المدخلات",
+            OperationState.SCANNING: "جارٍ فهرسة الصور",
+            OperationState.MATCHING: "جارٍ مطابقة المعرّفات",
+            OperationState.COPYING: "جارٍ نسخ الصور",
+            OperationState.GENERATING_REPORT: "جارٍ إنشاء التقرير",
+            OperationState.FINALIZING: "جارٍ إنهاء العملية بأمان",
+            OperationState.COMPLETED: "اكتملت العملية",
+            OperationState.PARTIAL_SUCCESS: "اكتملت العملية مع ملاحظات",
+            OperationState.FAILED: "تعذرت العملية",
+            OperationState.CANCELLED: "تم إلغاء العملية",
+            OperationState.PAUSED: "متوقف مؤقتًا",
+        }
+        self.stage.setText(labels[state])
+        if state in {OperationState.COMPLETED, OperationState.PARTIAL_SUCCESS}:
+            self.progress.setRange(0, 100)
+            self.progress.setValue(100)
 
     def set_progress(self, stage: str, current: int, total: int, item: str, stats) -> None:
         self.stage.setText(stage)

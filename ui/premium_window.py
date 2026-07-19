@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+import traceback
+import uuid
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QThread
+from PySide6.QtCore import QSettings, Qt, QThread, Slot
 from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -16,7 +19,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QMenu,
-    QMessageBox,
     QPushButton,
     QStackedWidget,
     QStyle,
@@ -25,9 +27,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from models.operation_state import OperationState
 from models.result_models import JobResult, ProcessingSettings
 from repositories.history_repository import HistoryRepository
 from ui.components.sidebar import Sidebar
+from ui.dialogs import AppDialog, confirm_dialog, message_dialog
 from ui.pages.about_page import AboutPage
 from ui.pages.dashboard_page import DashboardPage
 from ui.pages.history_page import HistoryPage
@@ -36,7 +40,7 @@ from ui.pages.preview_page import PreviewPage
 from ui.pages.reports_page import ReportsPage
 from ui.pages.settings_page import SettingsPage
 from ui.summary_dialog import SummaryDialog, open_path
-from ui.theme import stylesheet
+from ui.theme import apply_application_theme
 from utils.app_paths import AppPaths
 from utils.constants import APP_NAME
 from utils.version import APP_VERSION
@@ -89,15 +93,24 @@ class CommandPalette(QDialog):
 class MainWindow(QMainWindow):
     """منسّق عرض صغير؛ تبقى منطقية الصفحات والخدمات خارج النافذة."""
 
-    def __init__(self, project_root: Path, app_paths: AppPaths) -> None:
+    def __init__(self, project_root: Path, app_paths: AppPaths, logger: logging.Logger | None = None) -> None:
         super().__init__()
         self.project_root = project_root
         self.app_paths = app_paths
         self.settings = QSettings()
         self.history = HistoryRepository(app_paths.database)
+        self.logger = logger or logging.getLogger("mutabiq.lifecycle")
         self.worker: CopyWorker | None = None
-        self.thread: QThread | None = None
+        self.worker_thread: QThread | None = None
         self.processing = False
+        self.operation_state = OperationState.IDLE
+        self.active_operation_id: str | None = None
+        self._terminal_seen: set[str] = set()
+        self._operation_preview_modes: dict[str, bool] = {}
+        self._pending_terminal: tuple[str, object, object | None] | None = None
+        self._dialogs: list[QDialog] = []
+        self._last_start: tuple[ProcessingSettings, bool, JobResult | None] | None = None
+        self.logger.info("Main window creation started")
         self.current_page = "home"
         self.setWindowTitle(f"{APP_NAME} — {APP_VERSION}")
         self.setWindowIcon(QIcon(str(project_root / "assets/icons/app_logo.svg")))
@@ -109,6 +122,7 @@ class MainWindow(QMainWindow):
         self.apply_theme(self.settings.value("theme", "light"))
         geometry = self.settings.value("window_geometry")
         self.restoreGeometry(geometry) if geometry else None
+        self.logger.info("Main window created; id=%s", id(self))
 
     def _build(self) -> None:
         root = QWidget(objectName="appRoot")
@@ -212,23 +226,78 @@ class MainWindow(QMainWindow):
 
     def _start(self, settings: ProcessingSettings, preview_only: bool, prepared: JobResult | None) -> None:
         if self.processing:
+            self.logger.warning("Ignored duplicate start request; operation=%s", self.active_operation_id)
             return
+        operation_id = str(uuid.uuid4())
+        self._last_start = (settings, preview_only, prepared)
+        self.active_operation_id = operation_id
+        self._operation_preview_modes[operation_id] = preview_only
         self.processing = True
-        self.operation.set_processing(True)
+        self._set_state(OperationState.VALIDATING)
         self.navigate("operation")
-        self.thread = QThread(self)
-        self.worker = CopyWorker(settings, preview_only, self.app_paths.logs, self.app_paths, prepared)
-        self.worker.moveToThread(self.thread)
-        self.thread.started.connect(self.worker.run)
-        self.worker.progress.connect(self.operation.set_progress)
-        self.worker.completed.connect(lambda result: self._completed(result, preview_only))
-        self.worker.cancelled.connect(self._cancelled)
-        self.worker.failed.connect(self._failed)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self._thread_finished)
-        self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.start()
+        self.logger.info("Operation start; id=%s preview=%s", operation_id, preview_only)
+        thread = QThread(self)
+        worker = CopyWorker(settings, preview_only, self.app_paths.logs, self.app_paths, prepared, operation_id)
+        self.worker_thread = thread
+        self.worker = worker
+        self.logger.info("Worker and thread created; id=%s worker=%s thread=%s", operation_id, id(worker), id(thread))
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.progress.connect(self._progress)
+        worker.processing_completed.connect(self._processing_completed_signal)
+        worker.processing_cancelled.connect(self._processing_cancelled_signal)
+        worker.processing_failed.connect(self._processing_failed_signal)
+        worker.worker_finished.connect(thread.quit)
+        worker.worker_finished.connect(worker.deleteLater)
+        thread.setProperty("operation_id", operation_id)
+        thread.finished.connect(self._thread_finished_signal)
+        thread.finished.connect(thread.deleteLater)
+        self.logger.info("Lifecycle signals connected; id=%s", operation_id)
+        thread.start()
+
+    @Slot(str, str, int, int, str, object)
+    def _progress(self, operation_id: str, stage: str, current: int, total: int, item: str, stats) -> None:
+        if operation_id != self.active_operation_id or operation_id in self._terminal_seen:
+            return
+        stage_state = {
+            "فهرسة": OperationState.SCANNING,
+            "مطابقة": OperationState.MATCHING,
+            "نسخ": OperationState.COPYING,
+            "تقرير": OperationState.GENERATING_REPORT,
+        }
+        for text, state in stage_state.items():
+            if text in stage:
+                self._set_state(state)
+                break
+        self.operation.set_progress(stage, current, total, item, stats)
+
+    @Slot(str, object)
+    def _processing_completed_signal(self, operation_id: str, result: JobResult) -> None:
+        preview_only = self._operation_preview_modes.get(operation_id, False)
+        self._terminal(operation_id, "completed", result, preview_only)
+
+    @Slot(str, object)
+    def _processing_cancelled_signal(self, operation_id: str, result: JobResult) -> None:
+        self._terminal(operation_id, "cancelled", result)
+
+    @Slot(str, str, str)
+    def _processing_failed_signal(self, operation_id: str, message: str, log_path: str) -> None:
+        self._terminal(operation_id, "failed", message, log_path)
+
+    def _terminal(self, operation_id: str, kind: str, payload: object, extra: object | None = None) -> None:
+        """Record one terminal event; present UI only after the QThread has stopped."""
+
+        try:
+            if operation_id != self.active_operation_id or operation_id in self._terminal_seen:
+                self.logger.warning("Ignored stale/duplicate terminal signal; id=%s kind=%s", operation_id, kind)
+                return
+            self._terminal_seen.add(operation_id)
+            self._pending_terminal = (kind, payload, extra)
+            self._set_state(OperationState.FINALIZING)
+            self.logger.info("Worker terminal signal; id=%s kind=%s", operation_id, kind)
+        except Exception:
+            self.logger.exception("Terminal signal handler failed; id=%s", operation_id)
+            self._pending_terminal = ("failed", "تعذر إنهاء العملية بصورة سليمة.", "")
 
     def _completed(self, result: JobResult, preview_only: bool) -> None:
         self.preview.set_result(result)
@@ -238,28 +307,119 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("اكتملت المعاينة والفحص القبلي", 5000)
         else:
             self._refresh_pages()
-            dialog = SummaryDialog(result, self)
-            dialog.exec()
             self.navigate("history")
             self.statusBar().showMessage("اكتملت العملية وسُجل منشورها", 5000)
+            dialog = SummaryDialog(result, self)
+            dialog.openFailed.connect(
+                lambda message: self._show_dialog(message_dialog(self, "تعذر فتح المسار", message, severity="warning"))
+            )
+            self._show_dialog(dialog)
         self._update_notifications()
 
     def _cancelled(self, result: JobResult) -> None:
         self.preview.set_result(result)
-        QMessageBox.information(self, "تم الإلغاء", "توقفت العملية بأمان وسُجلت الملفات المكتملة.")
-
-    def _failed(self, message: str, log_path: str) -> None:
-        QMessageBox.critical(
-            self,
-            "تعذر إكمال العملية",
-            f"{message}\n\nالإجراء المقترح: راجع المسارات والصلاحيات ثم أعد المحاولة.\nالمرجع: PROC-001\nالسجل: {log_path}",
+        self._show_dialog(
+            message_dialog(self, "تم الإلغاء", "توقفت العملية بأمان وسُجلت الملفات المكتملة.", severity="warning")
         )
 
-    def _thread_finished(self) -> None:
-        self.processing = False
-        self.operation.set_processing(False)
-        self.worker = None
-        self.thread = None
+    def _failed(self, message: str, log_path: str) -> None:
+        dialog = AppDialog(
+            "تعذر إكمال العملية",
+            f"{message}\n\nراجع المسارات والصلاحيات ثم أعد المحاولة. المرجع: PROC-001",
+            severity="error",
+            details=f"المرجع: PROC-001\nالسجل: {log_path}",
+            log_path=Path(log_path) if log_path else None,
+            primary_text="إعادة المحاولة",
+            secondary_text="إغلاق",
+            parent=self,
+        )
+        dialog.actionTriggered.connect(
+            lambda action: (
+                self._retry_last() if action == "primary" else action == "open_log" and open_path(Path(log_path))
+            )
+        )
+        self._show_dialog(dialog)
+
+    def _retry_last(self) -> None:
+        if not self.processing and self._last_start:
+            settings, preview_only, prepared = self._last_start
+            self._start(settings, preview_only, prepared)
+
+    @Slot()
+    def _thread_finished_signal(self) -> None:
+        thread = self.sender()
+        if not isinstance(thread, QThread):
+            self.logger.error("Thread-finished signal had an unexpected sender")
+            return
+        self._thread_finished(str(thread.property("operation_id") or ""), thread)
+
+    def _thread_finished(self, operation_id: str, thread: QThread) -> None:
+        try:
+            self.logger.info("Thread finished; id=%s", operation_id)
+            if operation_id != self.active_operation_id or thread is not self.worker_thread:
+                self.logger.warning("Ignored stale thread finish; id=%s", operation_id)
+                return
+            terminal = self._pending_terminal
+            self.worker = None
+            self.worker_thread = None
+            self.processing = False
+            self.operation.set_processing(False)
+            self._pending_terminal = None
+            self._operation_preview_modes.pop(operation_id, None)
+            if terminal is None:
+                terminal = ("failed", "انتهى خيط المعالجة دون نتيجة نهائية.", "")
+            kind, payload, extra = terminal
+            self.logger.info("Completion UI delivery started; id=%s kind=%s", operation_id, kind)
+            if kind == "completed":
+                result = payload
+                assert isinstance(result, JobResult)
+                self._set_state(
+                    OperationState.PARTIAL_SUCCESS if result.outcome == "partial" else OperationState.COMPLETED
+                )
+                self._completed(result, bool(extra))
+            elif kind == "cancelled":
+                self._set_state(OperationState.CANCELLED)
+                assert isinstance(payload, JobResult)
+                self._cancelled(payload)
+            else:
+                self._set_state(OperationState.FAILED)
+                self._failed(str(payload), str(extra or ""))
+            self.logger.info("Completion UI delivery finished; id=%s", operation_id)
+        except Exception:
+            self.logger.exception("Thread cleanup/completion handler failed; id=%s", operation_id)
+            self.processing = False
+            self.worker = None
+            self.worker_thread = None
+            self.operation.set_processing(False)
+            self._set_state(OperationState.FAILED)
+            self._show_dialog(
+                message_dialog(
+                    self,
+                    "خطأ غير متوقع",
+                    "بقي التطبيق مفتوحًا، لكن تعذر عرض نتيجة العملية.",
+                    severity="error",
+                    details=traceback.format_exc(),
+                )
+            )
+
+    def _set_state(self, state: OperationState) -> None:
+        if self.operation_state != state:
+            self.logger.info("Operation state: %s -> %s", self.operation_state.value, state.value)
+        self.operation_state = state
+        self.operation.set_operation_state(state)
+
+    def _show_dialog(self, dialog: QDialog) -> None:
+        """Open without a nested event loop and retain a stable reference."""
+
+        self.logger.info("Dialog opening; class=%s", type(dialog).__name__)
+        self._dialogs.append(dialog)
+        dialog.finished.connect(lambda _code, owned=dialog: self._dialog_finished(owned))
+        dialog.open()
+
+    def _dialog_finished(self, dialog: QDialog) -> None:
+        if dialog in self._dialogs:
+            self._dialogs.remove(dialog)
+        self.logger.info("Dialog closed; class=%s main_visible=%s", type(dialog).__name__, self.isVisible())
 
     def cancel(self) -> None:
         if self.worker:
@@ -272,14 +432,19 @@ class MainWindow(QMainWindow):
             self.operation.stage.setText("متوقف مؤقتاً" if paused else "متابعة المعالجة")
 
     def apply_theme(self, theme: str) -> None:
-        self.settings.setValue("theme", theme)
-        QApplication.instance().setStyleSheet(
-            stylesheet(
+        try:
+            self.settings.setValue("theme", theme)
+            app = QApplication.instance()
+            assert isinstance(app, QApplication)
+            apply_application_theme(
+                app,
                 theme,
                 self.settings.value("large_text", False, type=bool),
                 self.settings.value("high_contrast", False, type=bool),
             )
-        )
+            self.logger.info("Theme applied; theme=%s dialogs=%d", theme, len(self._dialogs))
+        except Exception:
+            self.logger.exception("Theme application failed; theme=%s", theme)
 
     def toggle_theme(self) -> None:
         self.apply_theme("dark" if self.settings.value("theme", "light") == "light" else "light")
@@ -303,9 +468,16 @@ class MainWindow(QMainWindow):
         self._update_notifications()
 
     def _refresh_pages(self) -> None:
-        self.dashboard.refresh()
-        self.history_page.refresh()
-        self.reports.refresh()
+        for name, refresh in (
+            ("dashboard", self.dashboard.refresh),
+            ("history", self.history_page.refresh),
+            ("reports", self.reports.refresh),
+        ):
+            try:
+                refresh()
+            except Exception:
+                self.logger.exception("Page refresh failed; page=%s", name)
+                self.statusBar().showMessage("تعذر تحديث بعض بيانات السجل؛ بقيت نتائج النسخ محفوظة.", 7000)
 
     def load_demo(self) -> None:
         """افتح البيانات الخيالية في المعالج ولا تبدأ أي إجراء تلقائياً."""
@@ -347,17 +519,24 @@ class MainWindow(QMainWindow):
         CommandPalette(commands, self).exec()
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.logger.info("Main-window close event; processing=%s", self.processing)
         if self.processing:
-            if (
-                QMessageBox.question(self, "عملية قيد التنفيذ", "هل تريد إلغاء العملية وانتظار توقفها قبل الإغلاق؟")
-                != QMessageBox.StandardButton.Yes
+            if not confirm_dialog(
+                self,
+                "عملية قيد التنفيذ",
+                "يمكن متابعة العملية، أو إلغاؤها بأمان ثم محاولة الخروج مجددًا.",
+                confirm_text="إلغاء العملية ثم الخروج",
+                cancel_text="متابعة العملية",
+                destructive=True,
             ):
                 event.ignore()
                 return
             self.cancel()
-            if self.thread and not self.thread.wait(5000):
-                QMessageBox.warning(self, "انتظار", "لم تتوقف العملية بعد. حاول بعد لحظات.")
-                event.ignore()
-                return
+            self._show_dialog(
+                message_dialog(self, "جارٍ الإلغاء", "سيبقى التطبيق مفتوحًا حتى يتوقف العامل بأمان، ثم يمكنك إغلاقه.")
+            )
+            event.ignore()
+            return
         self.settings.setValue("window_geometry", self.saveGeometry())
+        self.logger.info("Main-window shutdown accepted")
         event.accept()

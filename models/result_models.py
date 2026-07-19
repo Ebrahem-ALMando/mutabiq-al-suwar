@@ -246,6 +246,8 @@ class JobResult:
     preflight_checks: list[PreflightCheck] = field(default_factory=list)
     profile_name: str = ""
     undone: bool = False
+    report_error: str = ""
+    post_processing_errors: list[str] = field(default_factory=list)
 
     @property
     def outcome(self) -> str:
@@ -253,6 +255,12 @@ class JobResult:
             return "failure"
         if self.cancelled:
             return "cancelled"
-        if self.stats.unmatched_identifiers or self.stats.skipped_files or self.stats.failed_copies:
+        if (
+            self.stats.unmatched_identifiers
+            or self.stats.skipped_files
+            or self.stats.failed_copies
+            or self.report_error
+            or self.post_processing_errors
+        ):
             return "partial"
         return "success"

@@ -46,7 +46,16 @@ def create_samples(root: Path) -> None:
     sheet.column_dimensions["B"].width = 22
     sheet.column_dimensions["C"].width = 28
     workbook.save(sample_root / "sample_identifiers.xlsx")
-    for filename in ("a3222263.png", "000125.png", "A-2026-15.png", "multi-77.jpg", "multi-77.png", "fuzzy-10.png", "AR-٩٩.PNG", "IMG_PREFIX-42_front.JPG"):
+    for filename in (
+        "a3222263.png",
+        "000125.png",
+        "A-2026-15.png",
+        "multi-77.jpg",
+        "multi-77.png",
+        "fuzzy-10.png",
+        "AR-٩٩.PNG",
+        "IMG_PREFIX-42_front.JPG",
+    ):
         (images / filename).write_bytes(PNG_1X1)
     nested = images / "مجلد_فرعي"
     nested.mkdir(exist_ok=True)

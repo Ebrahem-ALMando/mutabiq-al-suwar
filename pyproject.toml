@@ -23,3 +23,7 @@ check_untyped_defs = true
 ignore_missing_imports = true
 files = ["models", "repositories", "services", "utils", "workers"]
 exclude = "(\\.venv|\\.tools|build|dist|ui|tests)"
+
+[[tool.mypy.overrides]]
+module = ["ui.*"]
+ignore_errors = true

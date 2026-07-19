@@ -108,10 +108,10 @@ class DashboardPage(QWidget):
         failed = sum(item["failed_count"] for item in series)
         self.distribution.set_values(
             [
-                ("مطابق", matched, "#16835B"),
-                ("غير موجود", unmatched, "#B7791F"),
-                ("متعدد", multiple, "#087B83"),
-                ("فشل", failed, "#C2414B"),
+                ("مطابق", matched, "success"),
+                ("غير موجود", unmatched, "warning"),
+                ("متعدد", multiple, "primary"),
+                ("فشل", failed, "error"),
             ]
         )
         self.history_chart.set_values([(item["started_at"][5:10], item["total_identifiers"]) for item in series])
