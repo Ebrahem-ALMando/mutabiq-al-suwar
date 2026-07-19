@@ -52,19 +52,25 @@ class ResultTableModel(QAbstractTableModel):
             return record
         if role == Qt.ItemDataRole.TextAlignmentRole:
             return Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight
+        values = [
+            record.excel_row,
+            record.identifier,
+            record.secondary_name,
+            MATCH_STATUS_AR[record.match_status.value],
+            f"{record.similarity_score:.0%}" if record.similarity_score is not None else "—",
+            len(record.candidate_paths) or int(bool(record.source_path)),
+            record.source_filename,
+            record.destination_filename_override or record.destination_filename,
+            COPY_STATUS_AR[record.copy_status.value],
+            record.notes,
+        ]
         if role == Qt.ItemDataRole.DisplayRole:
-            return [
-                record.excel_row,
-                record.identifier,
-                record.secondary_name,
-                MATCH_STATUS_AR[record.match_status.value],
-                f"{record.similarity_score:.0%}" if record.similarity_score is not None else "—",
-                len(record.candidate_paths) or int(bool(record.source_path)),
-                record.source_filename,
-                record.destination_filename_override or record.destination_filename,
-                COPY_STATUS_AR[record.copy_status.value],
-                record.notes,
-            ][index.column()]
+            return values[index.column()]
+        if role == Qt.ItemDataRole.ToolTipRole:
+            value = values[index.column()]
+            if index.column() == 6 and record.source_path:
+                value = str(record.source_path)
+            return str(value or "—")
         return None
 
     def record(self, row: int) -> ResultRecord | None:

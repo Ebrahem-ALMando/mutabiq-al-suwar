@@ -17,7 +17,7 @@ def test_wizard_requires_inputs_and_copy_requires_preview(qtbot) -> None:
 
 def test_theme_styles_are_distinct() -> None:
     assert stylesheet("light") != stylesheet("dark")
-    assert "#0D1821" in stylesheet("dark")
+    assert "#032D23" in stylesheet("dark")
 
 
 def test_result_proxy_filters_status(qtbot) -> None:

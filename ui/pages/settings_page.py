@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -52,7 +53,11 @@ class SettingsPage(QWidget):
         self.categories.setMaximumWidth(210)
         layout.addWidget(self.categories)
         self.stack = QStackedWidget()
-        layout.addWidget(self.stack, 1)
+        content_card = QFrame(objectName="card")
+        content_layout = QVBoxLayout(content_card)
+        content_layout.setContentsMargins(24, 22, 24, 22)
+        content_layout.addWidget(self.stack)
+        layout.addWidget(content_card, 1)
         self.theme = QComboBox()
         self.theme.addItem("فاتح", "light")
         self.theme.addItem("داكن", "dark")
@@ -60,15 +65,18 @@ class SettingsPage(QWidget):
         self.theme.currentIndexChanged.connect(self._theme)
         self.large_text = QCheckBox("نص واجهة أكبر")
         self.large_text.setChecked(settings.value("large_text", False, type=bool))
-        self.large_text.toggled.connect(lambda value: settings.setValue("large_text", value))
+        self.large_text.toggled.connect(lambda value: self._appearance("large_text", value))
         self.high_contrast = QCheckBox("تباين أعلى")
         self.high_contrast.setChecked(settings.value("high_contrast", False, type=bool))
-        self.high_contrast.toggled.connect(lambda value: settings.setValue("high_contrast", value))
+        self.high_contrast.toggled.connect(lambda value: self._appearance("high_contrast", value))
         self.reduced_motion = QCheckBox("تقليل الحركة")
         self.reduced_motion.setChecked(settings.value("reduced_motion", False, type=bool))
-        self.reduced_motion.toggled.connect(lambda value: settings.setValue("reduced_motion", value))
+        self.reduced_motion.toggled.connect(lambda value: self._appearance("reduced_motion", value))
         self.stack.addWidget(
-            self._form_page("المظهر", [("السمة", self.theme), ("", self.large_text), ("", self.high_contrast)])
+            self._form_page(
+                "المظهر",
+                [("السمة", self.theme), ("", self.large_text), ("", self.high_contrast), ("", self.reduced_motion)],
+            )
         )
         fuzzy = QDoubleSpinBox()
         fuzzy.setRange(0.5, 0.99)
@@ -142,6 +150,10 @@ class SettingsPage(QWidget):
         value = self.theme.currentData()
         self.settings.setValue("theme", value)
         self.themeChanged.emit(value)
+
+    def _appearance(self, key: str, value: bool) -> None:
+        self.settings.setValue(key, value)
+        self.themeChanged.emit(str(self.settings.value("theme", "light")))
 
     def _clear_recent(self) -> None:
         for key in ("last_excel_file", "last_excel_folder", "last_source_folder", "last_destination_folder"):

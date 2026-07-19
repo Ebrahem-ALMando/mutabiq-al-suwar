@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QPushButton,
     QStackedWidget,
-    QStyle,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -30,10 +29,14 @@ from PySide6.QtWidgets import (
 from models.operation_state import OperationState
 from models.result_models import JobResult, ProcessingSettings
 from repositories.history_repository import HistoryRepository
+from ui.animations import AnimationManager
+from ui.components.controls import ThemeToggle
 from ui.components.sidebar import Sidebar
 from ui.dialogs import AppDialog, confirm_dialog, message_dialog
+from ui.icons import icon
 from ui.pages.about_page import AboutPage
 from ui.pages.dashboard_page import DashboardPage
+from ui.pages.guide_page import GuidePage
 from ui.pages.history_page import HistoryPage
 from ui.pages.operation_page import OperationPage
 from ui.pages.preview_page import PreviewPage
@@ -41,6 +44,7 @@ from ui.pages.reports_page import ReportsPage
 from ui.pages.settings_page import SettingsPage
 from ui.summary_dialog import SummaryDialog, open_path
 from ui.theme import apply_application_theme
+from ui.tour import TourOverlay
 from utils.app_paths import AppPaths
 from utils.constants import APP_NAME
 from utils.version import APP_VERSION
@@ -55,6 +59,7 @@ PAGE_META = {
     "settings": ("الإعدادات", "المظهر والأداء والفهرسة والخصوصية"),
     "about": ("حول البرنامج", "الإصدار والخصوصية والتوثيق المحلي"),
 }
+PAGE_META["guide"] = ("الدليل التفاعلي", "تعلّم سير العمل خطوة بخطوة أو ابدأ جولة آمنة داخل الواجهة")
 
 
 class CommandPalette(QDialog):
@@ -113,10 +118,11 @@ class MainWindow(QMainWindow):
         self.logger.info("Main window creation started")
         self.current_page = "home"
         self.setWindowTitle(f"{APP_NAME} — {APP_VERSION}")
-        self.setWindowIcon(QIcon(str(project_root / "assets/icons/app_logo.svg")))
+        self.setWindowIcon(QIcon(str(project_root / "assets/icons/app.ico")))
         self.setMinimumSize(1120, 720)
         self.resize(1360, 820)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.animations = AnimationManager(self.settings.value("reduced_motion", False, type=bool), self)
         self._build()
         self._shortcuts()
         self.apply_theme(self.settings.value("theme", "light"))
@@ -131,7 +137,7 @@ class MainWindow(QMainWindow):
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(0)
         self.sidebar = Sidebar(
-            str(self.project_root / "assets/icons/sidebar_logo.svg"),
+            str(self.project_root / "assets/branding/official_logo.png"),
             self.settings.value("reduced_motion", False, type=bool),
         )
         self.sidebar.pageSelected.connect(self.navigate)
@@ -149,24 +155,29 @@ class MainWindow(QMainWindow):
         title_box.addWidget(self.page_description)
         top_layout.addLayout(title_box)
         top_layout.addStretch()
-        self.theme_button = QPushButton("السمة")
-        self.theme_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DesktopIcon))
-        self.theme_button.clicked.connect(self.toggle_theme)
+        self.theme_button = ThemeToggle(
+            str(self.settings.value("theme", "light")),
+            self.settings.value("reduced_motion", False, type=bool),
+        )
+        self.theme_button.themeChanged.connect(self.apply_theme)
         top_layout.addWidget(self.theme_button)
         self.notification_button = QPushButton("الإشعارات")
+        self.notification_button.setObjectName("notificationButton")
+        self.notification_button.setMaximumWidth(72)
+        self.notification_button.setToolTip("الإشعارات")
         self.notification_button.clicked.connect(self.show_notifications)
         top_layout.addWidget(self.notification_button)
-        help_button = QPushButton("المساعدة")
-        help_button.clicked.connect(
-            lambda: open_path(
-                self.project_root / "USER_GUIDE_AR.md"
-                if (self.project_root / "USER_GUIDE_AR.md").exists()
-                else self.project_root / "README.md"
-            )
-        )
-        top_layout.addWidget(help_button)
+        self.help_button = QPushButton("")
+        self.help_button.setObjectName("helpButton")
+        self.help_button.setFixedWidth(44)
+        self.help_button.setToolTip("المساعدة والدليل")
+        self.help_button.clicked.connect(lambda: self.navigate("guide"))
+        top_layout.addWidget(self.help_button)
         menu_button = QToolButton()
-        menu_button.setText("القائمة")
+        menu_button.setObjectName("mainMenuButton")
+        menu_button.setText("")
+        menu_button.setFixedWidth(44)
+        menu_button.setToolTip("القائمة")
         menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(menu_button)
         menu.addAction("لوحة الأوامر", self.show_command_palette)
@@ -182,13 +193,17 @@ class MainWindow(QMainWindow):
         self.history_page = HistoryPage(self.history)
         self.reports = ReportsPage(self.history)
         self.settings_page = SettingsPage(self.settings, self.app_paths, self.history)
-        self.about = AboutPage(self.app_paths, self.project_root, self.project_root / "assets/icons/app_logo.svg")
+        self.guide = GuidePage(self.project_root)
+        self.about = AboutPage(
+            self.app_paths, self.project_root, self.project_root / "assets/branding/official_logo.png"
+        )
         self.page_map = {
             "home": self.dashboard,
             "operation": self.operation,
             "preview": self.preview,
             "history": self.history_page,
             "reports": self.reports,
+            "guide": self.guide,
             "settings": self.settings_page,
             "about": self.about,
         }
@@ -198,6 +213,8 @@ class MainWindow(QMainWindow):
         shell.addWidget(content, 1)
         self.dashboard.newOperationRequested.connect(lambda: self.navigate("operation"))
         self.dashboard.demoRequested.connect(self.load_demo)
+        self.guide.demoRequested.connect(self.load_demo)
+        self.guide.tourRequested.connect(self.start_tour)
         self.operation.previewRequested.connect(lambda settings: self._start(settings, True, None))
         self.operation.executeRequested.connect(lambda settings, prepared: self._start(settings, False, prepared))
         self.operation.cancelRequested.connect(self.cancel)
@@ -217,6 +234,7 @@ class MainWindow(QMainWindow):
         self.page_title.setText(PAGE_META[key][0])
         self.page_description.setText(PAGE_META[key][1])
         self.settings.setValue("selected_page", key)
+        self.animations.fade_in(self.page_map[key])
         if key == "home":
             self.dashboard.refresh()
         elif key == "history":
@@ -442,6 +460,20 @@ class MainWindow(QMainWindow):
                 self.settings.value("large_text", False, type=bool),
                 self.settings.value("high_contrast", False, type=bool),
             )
+            reduced = self.settings.value("reduced_motion", False, type=bool)
+            self.animations.set_reduced_motion(reduced)
+            self.sidebar.reduced_motion = reduced
+            self.theme_button.reduced_motion = reduced
+            self.theme_button.set_theme(theme)
+            self.sidebar.set_theme(theme)
+            self.notification_button.setIcon(icon("bell", theme=theme))
+            self.help_button.setIcon(icon("circle-help", theme=theme))
+            menu_button = self.findChild(QToolButton, "mainMenuButton")
+            if menu_button:
+                menu_button.setIcon(icon("menu", theme=theme))
+            for page in self.page_map.values():
+                if hasattr(page, "set_theme"):
+                    page.set_theme(theme)
             self.logger.info("Theme applied; theme=%s dialogs=%d", theme, len(self._dialogs))
         except Exception:
             self.logger.exception("Theme application failed; theme=%s", theme)
@@ -449,8 +481,28 @@ class MainWindow(QMainWindow):
     def toggle_theme(self) -> None:
         self.apply_theme("dark" if self.settings.value("theme", "light") == "light" else "light")
 
+    def start_tour(self) -> None:
+        """Start a non-modal overlay; missing targets are handled gracefully."""
+        self.navigate("home")
+        self._tour = TourOverlay(
+            self,
+            [
+                ("sidebar", "تنقّل بين أقسام التطبيق"),
+                ("navButton", "ابدأ عملية جديدة"),
+                ("pageTitle", "اعرف مكانك الحالي"),
+                ("helpButton", "ارجع إلى الدليل في أي وقت"),
+                ("notificationButton", "تابع نتائج العمليات والتنبيهات"),
+            ],
+        )
+        self._tour.setGeometry(self.centralWidget().rect())
+        self._tour.show()
+        self._tour.raise_()
+        self._tour.setFocus()
+
     def _update_notifications(self) -> None:
-        self.notification_button.setText(f"الإشعارات ({len(self.history.active_notifications())})")
+        count = len(self.history.active_notifications())
+        self.notification_button.setText(f"{count}" if count else "")
+        self.notification_button.setToolTip(f"الإشعارات ({count})")
 
     def show_notifications(self) -> None:
         menu = QMenu(self)

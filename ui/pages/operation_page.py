@@ -41,6 +41,7 @@ from models.result_models import (
 from services.excel_service import ExcelService
 from ui.components.drop_zone import DropZone
 from ui.dialogs import message_dialog
+from ui.icons import icon
 from utils.constants import DUPLICATE_POLICY_AR, MULTIPLE_POLICY_AR, SUPPORTED_EXCEL_EXTENSIONS
 
 
@@ -71,6 +72,8 @@ class OperationPage(QWidget):
         self.step_buttons: list[QPushButton] = []
         for index, title in enumerate(self.STEPS):
             button = QPushButton(f"{index + 1}  {title}")
+            button.setObjectName("wizardStep")
+            button.setProperty("step", index)
             button.clicked.connect(lambda checked=False, step=index: self.go_to(step))
             self.step_buttons.append(button)
             stepper.addWidget(button)
@@ -129,6 +132,8 @@ class OperationPage(QWidget):
         self.confidence = QLabel("", objectName="muted")
         layout.addWidget(self.confidence)
         self.data_preview = QTableWidget()
+        self.data_preview.verticalHeader().hide()
+        self.data_preview.setAlternatingRowColors(True)
         self.data_preview.setMaximumHeight(220)
         layout.addWidget(self.data_preview)
         return page
@@ -202,6 +207,8 @@ class OperationPage(QWidget):
         layout.addLayout(fuzzy_row)
         layout.addWidget(QLabel("مختبر قواعد أسماء الملفات", objectName="sectionTitle"))
         self.rules_table = QTableWidget(0, 4)
+        self.rules_table.verticalHeader().hide()
+        self.rules_table.setAlternatingRowColors(True)
         self.rules_table.setHorizontalHeaderLabels(["النوع", "القيمة", "البديل", "التطبيق على"])
         self.rules_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.rules_table)
@@ -252,6 +259,8 @@ class OperationPage(QWidget):
         self.preview_summary = QLabel("لم تُنفّذ المعاينة بعد.", objectName="muted")
         layout.addWidget(self.preview_summary)
         self.preflight_table = QTableWidget(0, 3)
+        self.preflight_table.verticalHeader().hide()
+        self.preflight_table.setAlternatingRowColors(True)
         self.preflight_table.setHorizontalHeaderLabels(["الفحص", "الحالة", "التفاصيل"])
         self.preflight_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.preflight_table)
@@ -285,7 +294,9 @@ class OperationPage(QWidget):
         actions.addWidget(self.cancel_button)
         layout.addLayout(actions)
         self.stage = QLabel("جاهز")
+        self.stage.setObjectName("sectionTitle")
         self.progress = QProgressBar()
+        self.progress.setObjectName("operationProgress")
         self.progress.setRange(0, 100)
         self.progress_detail = QLabel("", objectName="muted")
         layout.addWidget(self.stage)
@@ -299,9 +310,19 @@ class OperationPage(QWidget):
         self.stack.setCurrentIndex(self.current_step)
         for index, button in enumerate(self.step_buttons):
             button.setProperty("complete", index < self.current_step)
-            button.setStyleSheet("font-weight:700" if index == self.current_step else "")
+            button.setProperty("current", index == self.current_step)
+            button.style().unpolish(button)
+            button.style().polish(button)
         self.back_button.setEnabled(self.current_step > 0)
         self.next_button.setVisible(self.current_step < len(self.STEPS) - 1)
+
+    def set_theme(self, theme: str) -> None:
+        self.excel_zone.set_theme(theme)
+        self.source_zone.set_theme(theme)
+        self.destination_zone.set_theme(theme)
+        self.back_button.setIcon(icon("panel-right", theme=theme))
+        self.next_button.setIcon(icon("panel-right", theme=theme, role="text_on_primary"))
+        self.copy_button.setIcon(icon("plus", theme=theme, role="text_on_primary"))
 
     def _next(self) -> None:
         error = self._step_error(self.current_step)
@@ -372,6 +393,7 @@ class OperationPage(QWidget):
             self.confidence.setText(f"الترشيح: {best.confidence} ({best.score:.1f}/100) — {'، '.join(best.reasons)}")
         width = max((len(row) for row in preview), default=0)
         self.data_preview.setColumnCount(width)
+        self.data_preview.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.data_preview.setRowCount(len(preview))
         for row_index, row in enumerate(preview):
             for column_index, value in enumerate(row):

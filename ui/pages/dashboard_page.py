@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QSize, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from repositories.history_repository import HistoryRepository
 from ui.components.charts import BarChart, DonutChart
+from ui.icons import icon, logo_icon
 
 
 class DashboardPage(QWidget):
@@ -28,17 +29,26 @@ class DashboardPage(QWidget):
         super().__init__()
         self.history = history
         layout = QVBoxLayout(self)
-        action_row = QHBoxLayout()
-        intro = QLabel("ملخص نشاط المطابقة والنسخ المحلي", objectName="muted")
-        start = QPushButton("بدء عملية جديدة", objectName="primary")
-        start.clicked.connect(self.newOperationRequested)
-        demo = QPushButton("تشغيل مساحة العرض")
-        demo.clicked.connect(self.demoRequested)
-        action_row.addWidget(intro)
-        action_row.addStretch()
-        action_row.addWidget(start)
-        action_row.addWidget(demo)
-        layout.addLayout(action_row)
+        hero = QFrame(objectName="hero")
+        action_row = QHBoxLayout(hero)
+        action_row.setContentsMargins(24, 18, 24, 18)
+        emblem = QLabel()
+        emblem.setPixmap(logo_icon().pixmap(QSize(100, 70)))
+        intro_box = QVBoxLayout()
+        intro_box.addWidget(QLabel("منصة المطابقة المحلية", objectName="eyebrow"))
+        intro_box.addWidget(QLabel("طابق صورك بثقة، وراجع كل نتيجة قبل النسخ", objectName="sectionTitle"))
+        intro = QLabel("سير عمل عربي واضح يحافظ على الملفات داخل جهازك.", objectName="muted")
+        intro_box.addWidget(intro)
+        action_row.addLayout(intro_box, 1)
+        self.start = QPushButton("بدء عملية جديدة", objectName="heroPrimary")
+        self.start.setProperty("tourTarget", "new-operation")
+        self.start.clicked.connect(self.newOperationRequested)
+        self.demo = QPushButton("تحميل مثال آمن")
+        self.demo.clicked.connect(self.demoRequested)
+        action_row.addWidget(self.start)
+        action_row.addWidget(self.demo)
+        action_row.addWidget(emblem)
+        layout.addWidget(hero)
         self.stats_grid = QGridLayout()
         self.stat_values: dict[str, QLabel] = {}
         items = [
@@ -84,9 +94,16 @@ class DashboardPage(QWidget):
         self.latest = QTableWidget(0, 5)
         self.latest.setHorizontalHeaderLabels(["التاريخ", "ملف البيانات", "المعرّفات", "المنسوخ", "الحالة"])
         self.latest.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.latest.verticalHeader().hide()
+        self.latest.setAlternatingRowColors(True)
+        self.latest.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.latest.setMaximumHeight(190)
         layout.addWidget(self.latest)
         self.refresh()
+
+    def set_theme(self, theme: str) -> None:
+        self.start.setIcon(icon("plus", theme=theme, role="text_on_gold"))
+        self.demo.setIcon(icon("images", theme=theme))
 
     def refresh(self) -> None:
         data = self.history.dashboard()

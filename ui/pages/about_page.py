@@ -6,7 +6,7 @@ import platform
 from pathlib import Path
 
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from ui.summary_dialog import open_path
 from utils.app_paths import AppPaths
@@ -27,13 +27,15 @@ class AboutPage(QWidget):
         privacy = QLabel(PRIVACY_STATEMENT)
         privacy.setWordWrap(True)
         layout.addWidget(privacy)
-        layout.addWidget(
-            QLabel("الصيغ المدعومة: Excel وCSV وTSV؛ الصور: " + ", ".join(sorted(SUPPORTED_IMAGE_EXTENSIONS)))
+        formats = QLabel("الصيغ المدعومة: Excel وCSV وTSV؛ الصور: " + ", ".join(sorted(SUPPORTED_IMAGE_EXTENSIONS)))
+        formats.setWordWrap(True)
+        layout.addWidget(formats)
+        dependencies = QLabel(
+            "يعتمد على Python وPySide6 وopenpyxl. لا توجد شركة أو جهة قانونية مصطنعة، ولا تحليلات أو تتبع."
         )
-        layout.addWidget(
-            QLabel("يعتمد على Python وPySide6 وopenpyxl. لا توجد شركة أو جهة قانونية مصطنعة، ولا تحليلات أو تتبع.")
-        )
-        actions = QHBoxLayout()
+        dependencies.setWordWrap(True)
+        layout.addWidget(dependencies)
+        actions = QGridLayout()
         docs = QPushButton("فتح الدليل المحلي")
         docs.clicked.connect(lambda: open_path(project_root / "README.md"))
         data = QPushButton("فتح مجلد بيانات التطبيق")
@@ -46,7 +48,7 @@ class AboutPage(QWidget):
                 f"{APP_NAME} {APP_VERSION}\n{platform.platform()}\nPython {platform.python_version()}"
             )
         )
-        [actions.addWidget(button) for button in (docs, data, logs, system)]
-        actions.addStretch()
+        for index, button in enumerate((docs, data, logs, system)):
+            actions.addWidget(button, index // 2, index % 2)
         layout.addLayout(actions)
         layout.addStretch()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtCore import QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from models.result_models import JobResult
+from ui.bidi import safe_path
+from ui.icons import icon, logo_icon
 
 
 def open_path(path: Path) -> bool:
@@ -45,10 +47,24 @@ class SummaryDialog(QDialog):
             "failure": ("تعذر إكمال العملية", "error"),
             "cancelled": ("تم إلغاء العملية", "warning"),
         }[result.outcome]
+        heading_row = QHBoxLayout()
+        emblem = QLabel()
+        emblem.setPixmap(logo_icon().pixmap(QSize(78, 52)))
+        theme = str(self.parent().property("active_theme") or "light") if self.parent() else "light"
+        severity_icon = {"success": "circle-help", "warning": "info", "error": "info"}[outcome[1]]
+        status_icon = QLabel()
+        status_icon.setPixmap(
+            icon(severity_icon, theme=theme, size=28, role=outcome[1] if outcome[1] != "warning" else "gold").pixmap(
+                28, 28
+            )
+        )
         heading = QLabel(outcome[0])
         heading.setObjectName("sectionTitle")
         heading.setProperty("severity", outcome[1])
-        layout.addWidget(heading)
+        heading_row.addWidget(emblem)
+        heading_row.addWidget(status_icon)
+        heading_row.addWidget(heading, 1)
+        layout.addLayout(heading_row)
         if result.settings.dry_run:
             simulation = QLabel("محاكاة مكتملة: لم تُنسخ أي ملفات ولم تتغير ملفات المصدر أو الوجهة.")
             simulation.setObjectName("sectionTitle")
@@ -80,10 +96,10 @@ class SummaryDialog(QDialog):
         layout.addLayout(grid)
 
         paths = QLabel(
-            f"<b>مجلد النتائج:</b> {result.settings.destination_folder}<br>"
-            f"<b>ملف التقرير:</b> {result.report_path or 'لم يُنشأ'}<br>"
-            f"<b>ملف السجل:</b> {result.log_path or 'غير متاح'}"
-            f"<br><b>منشور العملية:</b> {result.manifest_path or 'لم يُنشأ'}"
+            f"<b>مجلد النتائج:</b> {safe_path(result.settings.destination_folder)}<br>"
+            f"<b>ملف التقرير:</b> {safe_path(result.report_path) if result.report_path else 'لم يُنشأ'}<br>"
+            f"<b>ملف السجل:</b> {safe_path(result.log_path) if result.log_path else 'غير متاح'}"
+            f"<br><b>منشور العملية:</b> {safe_path(result.manifest_path) if result.manifest_path else 'لم يُنشأ'}"
         )
         paths.setWordWrap(True)
         paths.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)

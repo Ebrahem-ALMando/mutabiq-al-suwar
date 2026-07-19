@@ -1,5 +1,5 @@
 #define MyAppName "مُطابق الصور"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.1.0"
 #define MyAppExeName "MutabiqAlSuwar.exe"
 
 [Setup]
@@ -9,7 +9,7 @@ AppVersion={#MyAppVersion}
 DefaultDirName={localappdata}\Programs\MutabiqAlSuwar
 DefaultGroupName={#MyAppName}
 OutputDir=..\installer-output
-OutputBaseFilename=MutabiqAlSuwar-Setup-2.0.0
+OutputBaseFilename=MutabiqAlSuwar-Setup-2.1.0
 SetupIconFile=..\assets\icons\app.ico
 Compression=lzma2
 SolidCompression=yes
@@ -42,4 +42,3 @@ begin
     if MsgBox('هل تريد حذف السجل المحلي والملفات التعريفية والصور المصغرة؟', mbConfirmation, MB_YESNO) = IDYES then
       DelTree(ExpandConstant('{localappdata}\MutabiqAlSuwar'), True, True, True);
 end;
-

@@ -9,8 +9,8 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, Qt, qInstallMessageHandler
-from PySide6.QtGui import QFont, QFontDatabase
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFont, QFontDatabase, QIcon, QPixmap
+from PySide6.QtWidgets import QApplication, QSplashScreen
 
 from services.logging_service import close_job_logger, create_job_logger
 from ui.dialogs import message_dialog
@@ -72,6 +72,7 @@ def main() -> int:
     load_application_font(app)
     apply_application_theme(app, "light")
     root = resource_root()
+    app.setWindowIcon(QIcon(str(root / "assets" / "icons" / "app.ico")))
     smoke_directory = (
         tempfile.TemporaryDirectory(prefix="mutabiq-smoke-data-", ignore_cleanup_errors=True)
         if "--smoke-test" in sys.argv
@@ -102,8 +103,22 @@ def main() -> int:
         sys.excepthook = exception_hook
         qInstallMessageHandler(qt_message_handler)
         startup_logger.info("بدء تشغيل التطبيق %s؛ Python=%s؛ root=%s", APP_VERSION, sys.version, root)
+        splash = None
+        if "--smoke-test" not in sys.argv:
+            splash_pixmap = QPixmap(str(root / "assets" / "branding" / "official_logo.png"))
+            if not splash_pixmap.isNull():
+                splash = QSplashScreen(splash_pixmap)
+                splash.showMessage(
+                    "مُطابق الصور — تجهيز مساحة العمل",
+                    Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
+                    Qt.GlobalColor.white,
+                )
+                splash.show()
+                app.processEvents()
         window = MainWindow(root, paths, startup_logger)
         window.show()
+        if splash:
+            splash.finish(window)
         if "--smoke-test" in sys.argv:
             start_lifecycle_smoke(window, app, startup_logger)
         exit_code = app.exec()

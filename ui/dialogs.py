@@ -7,6 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -15,6 +16,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from ui.icons import icon
 
 
 class AppDialog(QDialog):
@@ -48,11 +51,20 @@ class AppDialog(QDialog):
         root.setContentsMargins(24, 22, 24, 20)
         root.setSpacing(14)
 
+        heading_row = QHBoxLayout()
+        severity_icon = QLabel()
+        active_app = QApplication.instance()
+        theme = str(active_app.property("active_theme") or "light") if active_app else "light"
+        icon_name = {"success": "info", "warning": "info", "error": "info", "info": "circle-help"}.get(severity, "info")
+        role = {"success": "success", "warning": "gold", "error": "error"}.get(severity, "primary")
+        severity_icon.setPixmap(icon(icon_name, theme=theme, size=28, role=role).pixmap(28, 28))
         heading = QLabel(title)
         heading.setObjectName("sectionTitle")
         heading.setProperty("severity", severity)
         heading.setWordWrap(True)
-        root.addWidget(heading)
+        heading_row.addWidget(severity_icon)
+        heading_row.addWidget(heading, 1)
+        root.addLayout(heading_row)
         body = QLabel(message)
         body.setWordWrap(True)
         body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
